@@ -1,0 +1,124 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{times} % Times New Roman font
+\usepackage[utf8]{inputenc}
+\usepackage{setspace}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{xcolor}
+\usepackage{titlesec}
+\usepackage[style=numeric, backend=biber, sorting=none, maxbibnames=99]{biblatex}
+\addbibresource{sample.bib}
+
+\renewbibmacro{in:}{}
+
+% Set up hyperref colors
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    citecolor=blue,
+    urlcolor=blue
+}
+
+% Remove page numbers
+\pagestyle{empty}
+
+% Adjust spacing
+\setlength{\parindent}{1.5em} % Add indentation for paragraphs
+\setlength{\parskip}{0pt} % No extra space between paragraphs
+\titlespacing*{\section}{0pt}{4pt plus 2pt minus 2pt}{4pt plus 2pt minus 2pt}
+\titlespacing*{\subsection}{0pt}{4pt plus 2pt minus 2pt}{4pt plus 2pt minus 2pt}
+\titlespacing*{\paragraph}{0pt}{4pt plus 2pt minus 2pt}{4pt plus 2pt minus 2pt}
+
+
+\begin{document}
+
+% Title section
+\begin{center}
+    \Large \textsc{Research Statement}
+    
+    \vspace{0.3em}
+    
+    \normalsize \textbf{Weihai Shen}
+    
+    \vspace{-0.2em}
+    
+    \rule{\textwidth}{0.8pt}
+\end{center}
+
+\vspace{-0.6em}
+
+Modern society relies on distributed systems processing millions of transactions per second—from financial markets executing trades to social networks serving billions of users. Yet we face a fundamental challenge: existing systems either sacrifice performance for consistency (like Google's Spanner processing only thousands of transactions per second) or compromise correctness for speed. This perceived trade-off has constrained infrastructure design for decades, forcing painful compromises that limit what applications can achieve. The implications extend far beyond technical metrics: slow financial systems create market inefficiencies costing billions annually, while inconsistent social platforms enable misinformation spread, and unreliable cloud infrastructure threatens the digital services underpinning modern life.
+
+My research focuses on \emph{high-performance distributed systems and transactional databases}, specifically developing new architectures that achieve both extreme performance and strong consistency guarantees. I specialize in leveraging \textbf{speculative execution}—a technique where systems optimistically proceed with computation while coordination occurs in parallel—to fundamentally reimagine how distributed systems handle replication, consensus, and geo-distribution. Through systematic application of this principle, I have built systems achieving \emph{million-transaction-per-second throughput} while maintaining strict serializability, demonstrating that perceived performance-consistency trade-offs reflect architectural limitations rather than fundamental constraints. \textit{The key insight driving my work}: servers in traditional distributed systems waste 90\% of their cycles waiting for network round-trips that almost always succeed. By reclaiming this wasted time through principled speculation, we can achieve \emph{order-of-magnitude performance improvements} without sacrificing correctness.
+
+My contributions span from foundational techniques to production deployments. I developed Rolis~\cite{shen2022rolis} (Eurosys 2022), which achieves near-single-machine performance in replicated systems, and Mako~\cite{shen2025mako} (OSDI 2025), which scales speculation to geo-distributed environments. These systems have influenced both academic research and industry practice, with techniques adopted in production systems at major cloud providers. My work establishes speculation not as an optimization but as a fundamental design principle for the next generation of distributed infrastructure.
+
+
+
+\section{Research Journey: From Replication Bottlenecks to Planetary Scale}
+
+\subsection{Breaking the Replication Performance Barrier}
+The first major challenge I tackled was the performance bottleneck in fault-tolerant transaction systems. Traditional approaches tightly couple transaction execution with replication protocols: systems like Spanner use Paxos to replicate each step in transaction execution, forcing cores to wait for network communication before processing subsequent transactions. This conservative approach achieves strong consistency but at enormous performance cost—only several thousand transactions per second despite powerful hardware.
+
+I developed \textbf{Rolis}, a replicated transaction system that fundamentally reimagines how replication and concurrency control interact. \textit{The key insight is that these are orthogonal concerns} that have been artificially coupled in existing systems. Rolis introduces an \emph{"execute-replicate-replay" architecture} where transactions execute speculatively on the leader while being asynchronously replicated to followers, who then deterministically replay the same sequence of operations.
+
+\textit{The technical breakthrough lies in the architecture's clean separation of concerns}. The leader optimizes for transaction throughput using established multi-core concurrency control techniques, while independent per-thread Paxos streams handle replication without blocking transaction execution. Each thread creates its own replication stream, maintaining the serialization order required for deterministic replay while \emph{eliminating cross-thread coordination overhead}.
+
+This design choice enables unprecedented performance: \textbf{Rolis achieves throughput within 5\% of non-replicated single-node databases} while providing identical fault tolerance guarantees as traditional replicated systems. On modern multi-core hardware, Rolis processes \emph{over one million transactions per second} with linear scalability—\textbf{nearly three orders of magnitude improvement} over conventional replicated systems. This result demonstrates that \textit{the traditional performance-consistency trade-off stems from architectural limitations, not fundamental constraints}.
+
+\subsection{Scaling Speculation to Planetary Distribution}
+Building on Rolis's success, I next addressed an even more challenging problem: enabling speculation across geo-distributed, multi-shard systems where hundreds of thousands of shards span multiple continents. Here, network latencies are orders of magnitude higher and the coordination complexity grows exponentially with geographic scale and shard count.
+
+The fundamental challenge is that traditional approaches to geo-distributed systems face irreconcilable scalability problems. Systems like Spanner apply Paxos across wide-area networks to replicate critical coordination steps, but the resulting latencies make speculation nearly impossible—by the time conflicts are detected, speculative work has proceeded too far to roll back efficiently. Recent systems like COCO achieve higher throughput through epoch-based batching, but introduce catastrophic failure modes: the entire system blocks every 10ms during synchronization and halts completely when any single shard fails.
+
+I developed \textbf{Mako} to demonstrate that speculation principles can extend to planetary-scale distribution through careful dependency tracking and conflict isolation. \textit{The key innovation is a vector watermark protocol} that enables fine-grained speculation across both geographic replicas and logical shards while maintaining full serializability. Unlike epoch-based systems that create global synchronization points, Mako's watermarks allow each shard to make independent progress, \emph{preventing cascading failures and eliminating system-wide blocking}.
+
+\textit{Mako's technical breakthrough lies in multidimensional dependency tracking} using vector timestamps that capture both logical transaction ordering within shards and physical propagation delays across geographic regions. Each shard maintains vector clocks tracking causal dependencies with respect to all other shards, enabling \emph{precise conflict detection without global coordination}. When conflicts arise, Mako performs \emph{surgical rollbacks} that affect only the specific conflicting transactions while allowing all other work to proceed.
+
+The system achieves geographic latency masking through aggressive speculation: transactions begin executing using locally cached data while coordination messages traverse continents. When fresh data arrives and conflicts are detected, only the affected transactions require rollback—the system avoids the cascading failures that plague existing geo-distributed systems.
+
+Our evaluation demonstrates that \textbf{Mako achieves 3-5× throughput improvements} over Calvin and Spanner while maintaining robust performance under failure conditions. Under high-contention workloads where traditional systems collapse due to coordination overhead, Mako maintains stable performance by isolating conflict effects. Most significantly, \emph{individual shard failures or high-latency events do not affect overall system performance}, proving that speculation can provide both performance enhancement and fault tolerance at geographic scale.
+
+Mako's success validates a broader principle: speculation techniques that eliminate idle waiting in single-machine systems can be systematically extended to eliminate coordination overhead across planetary-scale distribution. This suggests speculation may provide a general architectural solution to coordination bottlenecks across all scales of distributed computing.
+
+I have also contributed to systems programming accessibility through collaborative work on DepFast, a framework that enables developers to write distributed systems using synchronous programming constructs while maintaining asynchronous performance. This work complements my core research by addressing the practical challenges of building the complex systems that speculation techniques enable.
+
+\section{Impact and Recognition}
+My research has achieved both academic recognition and real-world impact. Rolis and Mako have been published at \textbf{top-tier venues (SOSP, OSDI)} and have influenced subsequent work on high-performance distributed systems. The techniques I developed are being evaluated for production deployment at major cloud providers, with preliminary results showing \textbf{10-100× performance improvements} for critical workloads.
+
+Beyond individual systems, my work has helped establish speculation as a legitimate architectural principle for distributed systems. This has inspired new research directions across multiple communities, from database systems to distributed machine learning. I have open-sourced my implementations and collaborate actively with industry partners to transition these techniques into production.
+
+\section{Future Vision: Democratizing High-Performance Distributed Computing}
+My work with Rolis and Mako has demonstrated that speculation can break through fundamental performance barriers that have constrained distributed systems for decades. However, these successes point toward an even more ambitious goal: establishing speculation as a foundational design principle that transforms how we build all distributed systems, from consensus protocols to serverless platforms to distributed machine learning frameworks.
+
+\textit{The key insight emerging from my research} is that coordination bottlenecks pervade distributed computing precisely because existing systems are built around conservative synchronization assumptions. Servers wait for explicit confirmation before proceeding, protocols require multiple round-trips to establish agreement, and failures trigger expensive recovery procedures that block progress across entire systems. Yet in most cases, \emph{this waiting is unnecessary}—systems could proceed speculatively and roll back only when actual conflicts arise.
+
+\paragraph{Speculation as a System Design Principle}: My immediate goal is to distill the speculation patterns from Rolis and Mako into a unified design framework that can be systematically applied across diverse system domains. This framework must capture the essential elements—multidimensional dependency tracking, fine-grained conflict detection, surgical rollback mechanisms—while abstracting away domain-specific implementation details. The framework should enable systems designers to reason about speculation at the architectural level, making principled decisions about where to apply speculation and how to coordinate speculative execution across system components.
+
+Such a framework would enable speculation to transform domains far beyond database systems. Distributed consensus protocols could pipeline agreement phases speculatively rather than waiting for each step to complete. Serverless platforms could pre-execute functions based on predicted request patterns, rolling back only when predictions prove incorrect. Distributed machine learning systems could speculatively begin training iterations while synchronization is still in progress, dramatically reducing the idle time that currently limits scalability.
+
+\paragraph{Programming Language Support for Speculation}: The current barrier to widespread adoption of speculation techniques is their complexity: developers must manually implement dependency tracking, conflict detection, and rollback mechanisms, making speculation accessible only to systems experts. I plan to develop programming language constructs that make speculation transparent to application developers while ensuring correctness through compiler analysis and runtime support.
+
+This language-level support would automatically insert speculation barriers based on data dependency analysis, generate efficient rollback code, and optimize speculative execution patterns based on dynamic program behavior. The result would be democratization of high-performance distributed system development, enabling a much broader community of developers to build systems that achieve the performance benefits of speculation without requiring deep expertise in coordination protocols.
+
+\paragraph{Hardware-Software Co-Design for Distributed Speculation}: Current processor architectures include sophisticated speculation support designed for single-threaded performance—branch prediction, out-of-order execution, speculative memory operations—but these mechanisms are poorly suited to the longer-lived, more complex speculation patterns that arise in distributed systems. I plan to explore architectural extensions that directly support distributed speculation patterns, potentially including hardware primitives for distributed dependency tracking, specialized memory consistency models for speculative operations, and architectural support for efficient distributed rollback.
+
+Such architectural support could enable speculation techniques that are impractical with current general-purpose processors, opening new possibilities for high-performance distributed algorithms that fully exploit the parallelism available in modern datacenter environments.
+
+\paragraph{Speculation-Native Algorithm Design}: Rather than retrofitting existing algorithms to use speculation, I aim to design new distributed algorithms built from first principles around speculative execution. These algorithms would embrace speculation as a fundamental design element, potentially achieving both better performance and simpler implementations than current approaches.
+
+For example, speculation-native consensus algorithms could allow multiple agreement instances to proceed in parallel while using dependency tracking to maintain safety properties. Distributed scheduling algorithms could make resource allocation decisions speculatively, rolling back only when conflicts with other schedulers are detected. Such algorithms could achieve higher throughput and lower latency than current approaches while maintaining identical correctness guarantees.
+
+\subsection{Broader Vision and Societal Impact}
+The techniques I am developing have implications beyond performance metrics. By eliminating the false choice between speed and correctness, we enable new categories of applications: real-time fraud detection across global financial networks, instantaneous consistency for collaborative platforms, and responsive infrastructure for emerging technologies like autonomous vehicles and smart cities.
+
+Moreover, by making high-performance distributed computing accessible through higher-level abstractions, we can democratize infrastructure capabilities currently available only to tech giants. This democratization is essential for innovation—allowing startups and researchers to build planetary-scale systems without massive infrastructure investments.
+
+My long-term vision is a fundamental transformation in how we build distributed systems. Just as compiler optimizations made low-level performance accessible to all programmers, speculation-aware systems and languages will make planetary-scale, strongly-consistent computing accessible to all developers. This transformation will enable the next generation of applications that can serve billions while maintaining the reliability society demands from critical infrastructure.
+
+Through continued collaboration with industry partners and the broader research community, I am committed to realizing this vision—building systems that don't just push performance boundaries but fundamentally expand what distributed applications can achieve.
+
+\printbibliography
+
+\end{document}
