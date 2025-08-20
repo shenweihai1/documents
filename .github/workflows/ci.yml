@@ -1,0 +1,35 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  workflow_dispatch:
+
+# Cancel superseded runs when you push new commits to the same PR/branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [Debug, Release]
+        compiler: [gcc-11, gcc-12]  # trim later if you like
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive  # if you use submodules (e.g., third-party libs)
+
+      # Option A: run your existing test script
+      - name: Run tests (script)
+        if: always()
+        run: |
+          if [ -x ./scripts/test.sh ]; then
+            ./scripts/test.sh
+          else
+            echo "scripts/test.sh not found; falling back to ctest"
+          fi
